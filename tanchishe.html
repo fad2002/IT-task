@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+            flex-direction: column;
+        }
+
+        canvas {
+            background-color: #000;
+            display: block;
+        }
+
+        .buttons {
+            margin-bottom: 20px;
+        }
+
+        .score1,
+        .score2 {
+            font-size: 20px;
+            display: flex;
+        }
+
+        .score1 {
+            color: green;
+        }
+
+        .score2 {
+            color: blue;
+        }
+    </style>
+
+</head>
+
+<body>
+    <div class="buttons">
+        <button id="startButton">开始游戏</button>
+        <button id="pauseButton">暂停游戏</button>
+        <button id="restartButton">再来一局</button>
+        <span class="score1">绿队:0&nbsp;分</span><span class="score2">蓝队:0&nbsp;分</span>
+    </div>
+    <canvas id="gameCanvas" width="800" height="800"></canvas>
+
+    <script>
+        //获取画布的容器
+        const canvas = document.getElementById('gameCanvas')
+        //获取画布的2d处理
+        const ctx = canvas.getContext('2d')
+        //定义蛇身体每一小块的边长
+        const box = 20;
+        const score1 = document.querySelector('.score1')
+        const score2 = document.querySelector('.score2')
+        let green = 0
+        let blue = 0
+        let snake1, snake2, food, d1, gameInterval; // 定义贪吃蛇、食物、方向和游戏定时器的变量
+
+        document.getElementById('startButton').addEventListener('click', startGame); // 为开始按钮添加点击事件
+        document.getElementById('pauseButton').addEventListener('click', pauseGame); // 为暂停按钮添加点击事件
+        document.getElementById('restartButton').addEventListener('click', restartGame); // 为重新开始按钮添加点击事件
+        document.addEventListener('keydown', direction); // 添加方向键事件监听
+
+        //初始化游戏
+        function initializeGame() {
+            snake1 = [{ x: 9 * box, y: 10 * box }]; // 初始化贪吃蛇1的位置
+            snake2 = [{ x: 19 * box, y: 10 * box }]; // 初始化贪吃蛇2的位置
+            food = generateFood(); // 生成食物
+            d1 = null; // 初始化方向变量
+            score1.innerHTML = `绿队:${green}&nbsp分`//初始化分数
+            score2.innerHTML = `蓝队:${blue}&nbsp分`
+            //初始地图网格
+            for (let i = 0; i < 40; i++) {
+                for (let j = 0; j < 40; j++) {
+                    ctx.strokeStyle = 'gray'
+                    ctx.strokeRect(i * box, j * box, box, box)
+                }
+            }
+        }
+
+        //开始游戏
+        function startGame() {
+            //如果游戏已经在进行,停掉定时器
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(draw, 150);
+        }
+        //暂停游戏
+        function pauseGame() {
+            clearInterval(gameInterval)
+        }
+        //重新开始
+        function restartGame() {
+            green = 0
+            blue = 0
+            initializeGame()
+            startGame()
+        }
+        //绘制蛇的身体
+        function drawSnake(snake, color) {
+            for (let i = 0; i < snake.length; i++) {
+                //判断是否为蛇的头部并绘制
+                ctx.fillStyle = i === 0 ? color : 'white';
+                //绘制蛇身
+                ctx.fillRect(snake[i].x, snake[i].y, box, box)
+                //蛇边框上色
+                ctx.strokeStyle = color
+                ctx.strokeRect(snake[i].x, snake[i].y, box, box)
+            }
+        }
+        //方向判定
+        function direction(event) {
+            if (event.keyCode == 37 && d1 != 'RIGHT') {
+                d1 = 'LEFT'; // 如果按下左箭头键且当前方向不是右，设置方向为左
+            } else if (event.keyCode == 38 && d1 != 'DOWN') {
+                d1 = 'UP'; // 如果按下上箭头键且当前方向不是下，设置方向为上
+            } else if (event.keyCode == 39 && d1 != 'LEFT') {
+                d1 = 'RIGHT'; // 如果按下右箭头键且当前方向不是左，设置方向为右
+            } else if (event.keyCode == 40 && d1 != 'UP') {
+                d1 = 'DOWN'; // 如果按下下箭头键且当前方向不是上，设置方向为下
+            }
+        }
+        //判定碰撞
+        function collision(newHead, snake) {
+            for (let i = 0; i < snake.length; i++) {
+                if (newHead.x == snake[i].x && newHead.y == snake[i].y) {
+                    return true; // 如果新的头部位置与贪吃蛇身体的任何部分重叠，则返回true，表示发生碰撞
+                }
+            }
+            return false; // 没有碰撞，返回false
+        }
+        //AI移动 计算出AI下一步的移动坐标
+        function moveAI(snake, target) {
+            // 获取现在贪吃蛇头部位置
+            let head = Object.assign({}, snake[0])
+            //设置可能移动方式的数组
+            let possibleMoves = [
+                { x: head.x + box, y: head.y },//向右移动
+                { x: head.x - box, y: head.y },//向左运动
+                { x: head.x, y: head.y - box },//向上运动
+                { x: head.x, y: head.y + box },//向下运动
+            ]
+            //过滤出不会超出地图边界也不会导致碰撞的行动方式
+            possibleMoves = possibleMoves.filter(move => !collision(move, snake) && move.x >= 0 && move.x < canvas.width && move.y >= 0 && move.y < canvas.height)
+            //按距离对AI移动进行优先级排序(由近到远)
+            possibleMoves.sort((a, b) => {
+                const distA = Math.abs(a.x - target.x) + Math.abs(a.y - target.y)
+                const distB = Math.abs(b.x - target.x) + Math.abs(b.y - target.y)
+                return distA - distB
+            })
+            return possibleMoves[0] || head//返回优先级最高的移动,如果没有任何一种满足条件,则返回现在的位置(呆在原地)
+
+        }
+        //绘制游戏
+        function draw() {
+            ctx.fillStyle = '#000'; // 设置画布背景颜色为黑色
+            ctx.fillRect(0, 0, canvas.width, canvas.height); // 绘制画布背景
+            for (let i = 0; i < 40; i++) {
+                for (let j = 0; j < 40; j++) {
+                    ctx.strokeStyle = 'gray'
+                    ctx.strokeRect(i * box, j * box, box, box)
+                }
+            }
+            drawSnake(snake1, 'green')
+            drawSnake(snake2, 'blue')
+            ctx.fillStyle = 'red'; // 设置食物的颜色为红色
+            ctx.fillRect(food.x, food.y, box, box); // 绘制食物
+
+            let snake1X = snake1[0].x; // 获取贪吃蛇1头部的x坐标
+            let snake1Y = snake1[0].y; // 获取贪吃蛇1头部的y坐标
+
+            if (d1 == 'LEFT') snake1X -= box; // 如果方向为左，x坐标减小
+            if (d1 == 'UP') snake1Y -= box; // 如果方向为上，y坐标减小
+            if (d1 == 'RIGHT') snake1X += box; // 如果方向为右，x坐标增加
+            if (d1 == 'DOWN') snake1Y += box; // 如果方向为下，y坐标增加
+
+            let newHead2 = moveAI(snake2, food); // 计算贪吃蛇2的新的头部位置
+            if (collision(newHead2, snake1)) {
+                newHead2 = moveAI(snake2, { x: snake2[0].x, y: snake2[0].y + box }); // 避免碰撞，重新计算头部位置
+                setTimeout(() => {
+                    newHead2 = moveAI(snake2, food); // 延迟后再次计算头部位置
+                }, 500);
+            }
+
+            if (snake1X == food.x && snake1Y == food.y) {
+                //计算分数
+                score1.innerHTML = `绿队:${green += 10}&nbsp分`
+                food = generateFood(); // 如果贪吃蛇1吃到食物，重新生成食物
+            } else {
+                snake1.pop(); // 否则，移除贪吃蛇1的尾部
+            }
+
+            if (newHead2.x == food.x && newHead2.y == food.y) {
+                score2.innerHTML = `蓝队:${blue += 10}&nbsp分`
+                food = generateFood(); // 如果贪吃蛇2吃到食物，重新生成食物
+            } else {
+                snake2.pop(); // 否则，移除贪吃蛇2的尾部
+            }
+
+            let newHead1 = { x: snake1X, y: snake1Y }; // 计算贪吃蛇1新的头部位置
+
+            if (
+                snake1X < 0 ||
+                snake1X >= canvas.width ||
+                snake1Y < 0 ||
+                snake1Y >= canvas.height ||
+                collision(newHead1, snake1) ||
+                collision(newHead1, snake2) ||
+                blue >= 100
+            ) {
+                endGame('蓝队'); // 如果贪吃蛇1碰到边界或发生碰撞，结束游戏，蓝队胜利
+                return;
+            }
+
+            if (
+                newHead2.x < 0 ||
+                newHead2.x >= canvas.width ||
+                newHead2.y < 0 ||
+                newHead2.y >= canvas.height ||
+                collision(newHead2, snake2) ||
+                collision(newHead2, snake1) ||
+                green >= 100
+
+            ) {
+                endGame('绿队'); // 如果贪吃蛇2碰到边界或发生碰撞，结束游戏，绿队胜利
+                return;
+            }
+
+            snake1.unshift(newHead1); // 将新的头部位置添加到贪吃蛇1的头部
+            snake2.unshift(newHead2); // 将新的头部位置添加到贪吃蛇2的头部
+
+        }
+        //生成食物坐标
+        function generateFood() {
+            let newFood;
+            while (true) {
+                newFood = {
+                    x: Math.floor(Math.random() * 39 + 1) * box, // 随机生成食物的x坐标
+                    y: Math.floor(Math.random() * 39 + 1) * box // 随机生成食物的y坐标
+                };
+                if (!collision(newFood, snake1) && !collision(newFood, snake2)) break; // 确保生成的食物不与贪吃蛇的身体重叠
+            }
+            return newFood; // 返回生成的食物
+        }
+
+        function endGame(winner) {
+            clearInterval(gameInterval); // 清除游戏定时器，结束游戏
+            alert(winner + ' 胜利!'); // 显示胜利者
+        }
+
+
+
+        //初始化游戏
+        initializeGame()
+
+    </script>
+</body>
+
+</html>
